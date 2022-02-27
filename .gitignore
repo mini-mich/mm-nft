@@ -128,3 +128,4 @@ dist
 artifacts/*
 cache/*
 bin/*
+.DS_Store
