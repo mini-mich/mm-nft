@@ -1,0 +1,76 @@
+//Contract based on https://docs.openzeppelin.com/contracts/3.x/erc721
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.7.3;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/cryptography/MerkleProof.sol";
+import "hardhat/console.sol";
+import './MiniMichStrings.sol';
+
+
+contract MiniMich is ERC721, Ownable {
+    using Counters for Counters.Counter;
+    Counters.Counter private _tokenIds;
+    address private _creators;
+
+    constructor(address _creatorAdd) public ERC721("MiniMich", "MM") 
+    {
+        _creators = _creatorAdd;
+    }
+
+    function setCreator(address to) external onlyOwner returns (address) {
+        _creators = to;
+        return _creators;
+    }
+
+    function mintNFT(address recipient, string memory tokenURI, bytes32 wlistRoot, bytes32[] calldata merkleProof)
+        public payable 
+        returns (uint256)
+    {
+       console.log("Sender balance is %s tokens", recipient);
+       require(
+            balanceOf(_msgSender()) + 1 <= 2,
+            "Limit of 2 per wallet"
+        );
+       require(
+            MerkleProof.verify(
+                merkleProof,
+                wlistRoot,
+                keccak256(abi.encodePacked(msg.sender))
+            ),
+            "Not on whitelist"
+        );
+
+        _tokenIds.increment();
+
+        uint256 newItemId = _tokenIds.current();
+	require(newItemId > 0 && newItemId < 10001, "Exceeds token supply");
+	require(msg.value >= 0.01 ether, "Not enough ETH sent: check price.");
+        _mint(recipient, newItemId);
+        _setTokenURI(newItemId, constructTokenURI(tokenURI,newItemId));
+
+        return newItemId;
+    }
+
+    function constructTokenURI(string memory tokenURI, uint256 tokenId) private view returns (string memory) {
+    return MiniMichStrings.strConcat(
+        tokenURI,
+        MiniMichStrings.uint2str(tokenId),
+	".json"
+    );
+    }
+
+    function withdrawFunds(uint256 _amt) public onlyOwner {
+        uint256 pay_amt;
+        if (_amt == 0) {
+            pay_amt = address(this).balance;
+        } else {
+            pay_amt = _amt;
+        }
+
+        (bool success, ) = payable(_creators).call{value: pay_amt}("");
+        require(success, "Failed to send payment, let the artists starve!");
+    }
+}
