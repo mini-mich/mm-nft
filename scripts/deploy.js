@@ -4,7 +4,7 @@ async function main() {
 
    // Start deployment, returning a promise that resolves to a contract object
    const mmNFT = await MmNFT.deploy("https://gateway.pinata.cloud/ipfs/QmdWdwwr3SLqjRtXFGhnBP9NfVTkmpNLG3Zjx1Wtm1zDUo/")// Instance of the contract 
-   console.log("Contract deployed to address:", myNFT.address);
+   console.log("Contract deployed to address:", mmNFT.address);
 }
 
 main()
