@@ -177,15 +177,8 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
      * This section will have all the internals set to onlyOwner
      */
 
-    function withdrawFunds(uint256 _amt) external onlyOwner {
-        uint256 pay_amt;
-        if (_amt == 0) {
-            pay_amt = address(this).balance;
-        } else {
-            pay_amt = _amt;
-        }
-
-        (bool success, ) = payable(_creators).call{value: pay_amt}("");
+    function withdrawFunds() external onlyOwner {
+        (bool success, ) = payable(_creators).call{value: address(this).balance}("");
         require(success, "Failed to send payment");
     }
 
@@ -251,18 +244,18 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
 
 
 
-      function getAuctionPrice(uint256 _saleStartTime)
+  function getAuctionPrice()
     public
     view
     returns (uint256)
   {
-    if (block.timestamp < _saleStartTime) {
+    if (block.timestamp < auctionSaleStartTime) {
       return AUCTION_START_PRICE;
     }
-    if (block.timestamp - _saleStartTime >= AUCTION_PRICE_CURVE_LENGTH) {
+    if (block.timestamp - auctionSaleStartTime >= AUCTION_PRICE_CURVE_LENGTH) {
       return AUCTION_END_PRICE;
     } else {
-      uint256 steps = (block.timestamp - _saleStartTime) /
+      uint256 steps = (block.timestamp - auctionSaleStartTime) /
         AUCTION_DROP_INTERVAL;
       return AUCTION_START_PRICE - (steps * AUCTION_DROP_PER_STEP);
     }
@@ -275,8 +268,9 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
   function auctionMint(uint256 mintNum) 
     external 
     payable
+    nonReentrant
     maxSupply(mintNum)
-    correctPayment(getAuctionPrice(auctionSaleStartTime), mintNum)
+    correctPayment(getAuctionPrice(), mintNum)
     {
     require(
       auctionSaleStartTime != 0 && block.timestamp >= auctionSaleStartTime,
