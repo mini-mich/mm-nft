@@ -15,16 +15,24 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
     bool public freezeURI;
 
     uint256 public constant MAX_NFT = 10;//10000;
-    uint256 public constant MAX_RESERVE = 9;//199;
     uint256 public constant MAX_PRESALE = 9;//999;
     uint256 public constant MAX_PRESALE_MINT = 2;
     uint256 public MAX_BATCH = 5;
-    uint256 public RESERVE_COUNT = 0;
     uint256 public PRESALE_COUNT = 0;
     uint256 public PRICE = 0.02 ether;//0.5 ether;
     uint256 public PRESALE_PRICE = 0.01 ether;//0.2 ether;
 
     address private _creators = 0xF580fc0f5aE3032171c781FBBBE73f54Fe411C4b;//to be update
+ 
+    uint256 public auctionSaleStartTime;
+    uint256 public AUCTION_START_PRICE = 0.1 ether;
+    uint256 public AUCTION_END_PRICE = 0.015 ether;
+    uint256 public AUCTION_PRICE_CURVE_LENGTH = 17 minutes;
+    uint256 public AUCTION_DROP_INTERVAL = 1 minutes;
+    uint256 public AUCTION_DROP_PER_STEP =
+        (AUCTION_START_PRICE - AUCTION_END_PRICE) /
+        (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL);
+
 
     // ** MODIFIERS ** //
     // *************** //
@@ -37,15 +45,20 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         require(preLiveToggle == true, "Presale is not live yet");
         _;
     }
-
-    modifier correctPayment(uint256 mintPrice, uint32 numToMint) {
+    modifier correctPayment(uint256 mintPrice, uint256 numToMint) {
         require(
-            msg.value == mintPrice * numToMint,
+            msg.value >= mintPrice * numToMint,
             "Payment failed"
         );
         _;
     }
-
+     modifier maxSupply(uint256 mintNum) {
+       require(
+            totalSupply() + mintNum <= MAX_NFT,
+            "Sold out"
+        );
+        _;
+     }
     // ** CONSTRUCTOR ** //
     // *************** //
     constructor(string memory _mURI)
@@ -91,21 +104,18 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
      *    ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝   ╚═╝
      */
 
-    function publicMint(uint32 mintNum)
+    function publicMint(uint256 mintNum)
         external
         payable
         nonReentrant
         saleLive
         correctPayment(PRICE, mintNum)
+        maxSupply(mintNum)
     {
-        require(
-            totalSupply() + mintNum + MAX_RESERVE - RESERVE_COUNT <= MAX_NFT,
-            "Sold out"
-        );
         _safeMint(_msgSender(), mintNum);
     }
 
-    function preMint(uint32 mintNum, bytes32[] calldata merkleProof)
+    function preMint(uint256 mintNum, bytes32[] calldata merkleProof)
         external
         payable
         nonReentrant
@@ -132,11 +142,11 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         PRESALE_COUNT += mintNum;
     }
 
-    function devMint(uint256 mintNum) external onlyOwner {
-        require(
-            totalSupply() + mintNum <= MAX_NFT,
-            "Dev reaches mint"
-        );
+    function devMint(uint256 mintNum) 
+        external 
+        onlyOwner 
+        maxSupply(mintNum) 
+    {
         require(
             mintNum % MAX_BATCH == 0,
             "Multiple of the MAX_BATCH"
@@ -147,24 +157,14 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    function reserve(address[] calldata receivers, uint32 mintNum)
+    function reserve(address[] calldata receivers, uint256 mintNum)
         external
         onlyOwner
+        maxSupply(mintNum*receivers.length)
     {
-        require(
-            totalSupply() + receivers.length * mintNum <= MAX_NFT,
-            "Sold out"
-        );
-        require(
-            RESERVE_COUNT + receivers.length * mintNum <= MAX_RESERVE,
-            "Reach reserve limit"
-        );
-
-        for (uint32 i = 0; i < receivers.length; i++) {
-            require(receivers[i] != address(0), "zero address");
+        for (uint256 i = 0; i < receivers.length; i++) {
             _safeMint(receivers[i], mintNum);
         }
-        RESERVE_COUNT = RESERVE_COUNT + receivers.length * mintNum;
     }
 
     /***
@@ -225,13 +225,15 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         _unpause();
     }
 
-    function updatePrice(uint256 _price, uint32 _list) external onlyOwner {
+    function updatePrice(uint256 _price, uint256 _list) external onlyOwner {
         if (_list == 0) {
-            // sale price
-            PRICE = _price * 10**18;
+            PRICE = _price ;
+        } else if (_list == 1) {
+            AUCTION_START_PRICE = _price ;
+        } else if (_list == 2) {
+            AUCTION_END_PRICE = _price ;
         } else {
-            // presale price
-            PRESALE_PRICE = _price * 10**18;
+            PRESALE_PRICE = _price ;
         }
     }
 
@@ -246,4 +248,41 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
     // {
     //     _setOwnersExplicit(quantity);
     // }
+
+
+
+      function getAuctionPrice(uint256 _saleStartTime)
+    public
+    view
+    returns (uint256)
+  {
+    if (block.timestamp < _saleStartTime) {
+      return AUCTION_START_PRICE;
+    }
+    if (block.timestamp - _saleStartTime >= AUCTION_PRICE_CURVE_LENGTH) {
+      return AUCTION_END_PRICE;
+    } else {
+      uint256 steps = (block.timestamp - _saleStartTime) /
+        AUCTION_DROP_INTERVAL;
+      return AUCTION_START_PRICE - (steps * AUCTION_DROP_PER_STEP);
+    }
+  }
+
+  function setAuctionSaleStartTime(uint256 timestamp) external onlyOwner {
+    auctionSaleStartTime = timestamp;
+  }
+
+  function auctionMint(uint256 mintNum) 
+    external 
+    payable
+    maxSupply(mintNum)
+    correctPayment(getAuctionPrice(auctionSaleStartTime), mintNum)
+    {
+    require(
+      auctionSaleStartTime != 0 && block.timestamp >= auctionSaleStartTime,
+      "sale has not started yet"
+    );
+
+    _safeMint(msg.sender, mintNum);
+  }
 }
