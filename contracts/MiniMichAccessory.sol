@@ -11,10 +11,10 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
     bool public saleLiveToggle;
     bool public freezeURI;
 
-    uint256 public constant MAX_NFT = 200;
+    uint256 public constant MAX_NFT = 500;
     uint256 public constant MAX_MINT = 1;
     uint256 public MAX_BATCH = 5;
-    uint256 public PRICE = 0;
+    uint256 public PRICE = 0.001 ether;
 
     address private _creators = 0xF580fc0f5aE3032171c781FBBBE73f54Fe411C4b;//to be update 0x999eaa33BD1cE817B28459950E6DcD1dA14C411f
  
@@ -33,6 +33,13 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
         _;
      }
 
+    modifier correctPayment(uint256 mintPrice, uint256 numToMint) {
+        require(
+            msg.value >= mintPrice * numToMint,
+            "Payment failed"
+        );
+        _;
+    }
     // ** CONSTRUCTOR ** //
     // *************** //
     constructor(string memory _mURI)
@@ -83,6 +90,7 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
         payable
         nonReentrant
         saleLive
+        correctPayment(PRICE, mintNum)
         maxSupply(mintNum)
     {
         require(
