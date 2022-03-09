@@ -12,9 +12,9 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
     bool public freezeURI;
 
     uint256 public constant MAX_NFT = 500;
-    uint256 public constant MAX_MINT = 1;
+    uint256 public constant MAX_MINT = 5;
     uint256 public MAX_BATCH = 5;
-    uint256 public PRICE = 0.001 ether;
+    uint256 public PRICE = 0.01 ether;
 
     address private _creators = 0xF580fc0f5aE3032171c781FBBBE73f54Fe411C4b;//to be update 0x999eaa33BD1cE817B28459950E6DcD1dA14C411f
  
@@ -100,6 +100,16 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
         _safeMint(_msgSender(), mintNum);
     }
 
+    /***
+     *     ██████╗ ██╗    ██╗███╗   ██╗███████╗██████╗
+     *    ██╔═══██╗██║    ██║████╗  ██║██╔════╝██╔══██╗
+     *    ██║   ██║██║ █╗ ██║██╔██╗ ██║█████╗  ██████╔╝
+     *    ██║   ██║██║███╗██║██║╚██╗██║██╔══╝  ██╔══██╗
+     *    ╚██████╔╝╚███╔███╔╝██║ ╚████║███████╗██║  ██║
+     *     ╚═════╝  ╚══╝╚══╝ ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
+     * This section will have all the internals set to onlyOwner
+     */
+
     function devMint(uint256 mintNum) 
         external 
         onlyOwner 
@@ -125,16 +135,6 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    /***
-     *     ██████╗ ██╗    ██╗███╗   ██╗███████╗██████╗
-     *    ██╔═══██╗██║    ██║████╗  ██║██╔════╝██╔══██╗
-     *    ██║   ██║██║ █╗ ██║██╔██╗ ██║█████╗  ██████╔╝
-     *    ██║   ██║██║███╗██║██║╚██╗██║██╔══╝  ██╔══██╗
-     *    ╚██████╔╝╚███╔███╔╝██║ ╚████║███████╗██║  ██║
-     *     ╚═════╝  ╚══╝╚══╝ ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
-     * This section will have all the internals set to onlyOwner
-     */
-
     function withdrawFunds() external onlyOwner {
         (bool success, ) = payable(_creators).call{value: address(this).balance}("");
         require(success, "Failed to send payment");
@@ -144,16 +144,6 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
         require(freezeURI == false, "Metadata is frozen");
         _metadataBaseURI = _URI;
     }
-
-    //   function setMAX_BATCH(uint256 maxBatch) external onlyOwner returns (uint256 ) {
-    //       MAX_BATCH = maxBatch;
-    //       return MAX_BATCH;
-    //   }
-
-    //   function setCreator(address to) external onlyOwner returns (address) {
-    //       _creators = to;
-    //       return _creators;
-    //   }
 
     function tglLive() external onlyOwner {
         saleLiveToggle = !saleLiveToggle;
@@ -175,13 +165,4 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
     function updatePrice(uint256 _price) external onlyOwner {
         PRICE = _price ;
     }
-
-    // function setOwnersExplicit(uint256 quantity)
-    //     external
-    //     onlyOwner
-    //    nonReentrant
-    // {
-    //     _setOwnersExplicit(quantity);
-    // }
-
 }
