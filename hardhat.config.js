@@ -16,11 +16,6 @@ module.exports = {
          }
       }
    },
-   // solidity: "0.8.2",
-   // optimizer: {
-   //   enabled: true,
-   //   runs: 500,
-   // },
    defaultNetwork: "ropsten",
    networks: {
       hardhat: {},

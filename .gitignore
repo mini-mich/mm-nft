@@ -131,3 +131,5 @@ cache/*
 bin/*
 
 .DS_Store
+arg*
+scripts/*
