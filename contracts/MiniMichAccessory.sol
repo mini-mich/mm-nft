@@ -8,7 +8,7 @@ import "./ERC721A.sol";
 
 contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
     string private _metadataBaseURI;
-    bool public saleLiveToggle;
+    bool public saleLiveToggle=true;
     bool public freezeURI;
 
     uint256 public constant MAX_NFT = 500;
@@ -16,7 +16,7 @@ contract MiniMichAccessory is ERC721A, Ownable, Pausable, ReentrancyGuard {
     uint256 public MAX_BATCH = 5;
     uint256 public PRICE = 0.01 ether;
 
-    address private _creators = 0xF580fc0f5aE3032171c781FBBBE73f54Fe411C4b;//to be update 0x999eaa33BD1cE817B28459950E6DcD1dA14C411f
+    address private _creators = 0x999eaa33BD1cE817B28459950E6DcD1dA14C411f;
  
     // ** MODIFIERS ** //
     // *************** //
