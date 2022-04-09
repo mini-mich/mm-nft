@@ -10,25 +10,26 @@ import "./ERC721A.sol";
 contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
     string private _metadataBaseURI;
     bytes32 private wlisteRoot;
-    bool public preLiveToggle;
+    bool public preLiveToggle=true;
     bool public saleLiveToggle;
     bool public freezeURI;
 
-    uint256 public constant MAX_NFT = 10;//10000;
-    uint256 public constant MAX_PRESALE = 9;//999;
-    uint256 public constant MAX_PRESALE_MINT = 2;
+    uint256 public constant MAX_PUBLIC = 10000;
+    uint256 public constant RESERVED_NFT = 2000;
+    uint256 public constant MAX_PRESALE = 999;
+    uint256 public constant MAX_PRESALE_MINT = 5;
     uint256 public MAX_BATCH = 5;
     uint256 public PRESALE_COUNT = 0;
-    uint256 public PRICE = 0.02 ether;//0.5 ether;
-    uint256 public PRESALE_PRICE = 0.01 ether;//0.2 ether;
+    uint256 public PRICE = 0.5 ether;
+    uint256 public PRESALE_PRICE = 0.1 ether;
 
-    address private _creators = 0xF580fc0f5aE3032171c781FBBBE73f54Fe411C4b;//to be update 0x999eaa33BD1cE817B28459950E6DcD1dA14C411f
+    address private _creators = 0x999eaa33BD1cE817B28459950E6DcD1dA14C411f;
  
     uint256 public auctionSaleStartTime;
-    uint256 public AUCTION_START_PRICE = 0.1 ether;
-    uint256 public AUCTION_END_PRICE = 0.015 ether;
-    uint256 public AUCTION_PRICE_CURVE_LENGTH = 17 minutes;
-    uint256 public AUCTION_DROP_INTERVAL = 1 minutes;
+    uint256 public AUCTION_START_PRICE = 0.5 ether;
+    uint256 public AUCTION_END_PRICE = 0.2 ether;
+    uint256 public AUCTION_PRICE_CURVE_LENGTH = 600 minutes;
+    uint256 public AUCTION_DROP_INTERVAL = 30 minutes;
     uint256 public AUCTION_DROP_PER_STEP =
         (AUCTION_START_PRICE - AUCTION_END_PRICE) /
         (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL);
@@ -54,15 +55,23 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
     }
      modifier maxSupply(uint256 mintNum) {
        require(
-            totalSupply() + mintNum <= MAX_NFT,
+            totalSupply() + mintNum <= MAX_PUBLIC,
             "Sold out"
         );
         _;
      }
+     modifier maxSupplyDev(uint256 mintNum) {
+       require(
+            totalSupply() + mintNum <= MAX_PUBLIC+RESERVED_NFT,
+            "Dev Sold out"
+        );
+        _;
+     }
+
     // ** CONSTRUCTOR ** //
     // *************** //
     constructor(string memory _mURI)
-        ERC721A("MiniMich", "MM", MAX_BATCH, MAX_NFT)
+        ERC721A("MiniMich", "MM", MAX_BATCH, MAX_PUBLIC+RESERVED_NFT)
     {
         _metadataBaseURI = _mURI;
     }
@@ -95,15 +104,25 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         super._beforeTokenTransfers(from, to, startTokenId, quantity);
     }
 
-    /***
-     *    ███╗   ███╗██╗███╗   ██╗████████╗
-     *    ████╗ ████║██║████╗  ██║╚══██╔══╝
-     *    ██╔████╔██║██║██╔██╗ ██║   ██║
-     *    ██║╚██╔╝██║██║██║╚██╗██║   ██║
-     *    ██║ ╚═╝ ██║██║██║ ╚████║   ██║
-     *    ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝   ╚═╝
-     */
+    function getAuctionPrice()
+        public
+        view
+        returns (uint256)
+    {
+        if (block.timestamp < auctionSaleStartTime) {
+            return AUCTION_START_PRICE;
+        }
+        if (block.timestamp - auctionSaleStartTime >= AUCTION_PRICE_CURVE_LENGTH) {
+            return AUCTION_END_PRICE;
+        } 
+        else {
+            uint256 steps = (block.timestamp - auctionSaleStartTime) / AUCTION_DROP_INTERVAL;
+            return AUCTION_START_PRICE - (steps * AUCTION_DROP_PER_STEP);
+        }
+    }
 
+    // ** MINT ** //
+    // *************** //
     function publicMint(uint256 mintNum)
         external
         payable
@@ -113,6 +132,21 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         maxSupply(mintNum)
     {
         _safeMint(_msgSender(), mintNum);
+    }
+
+    function auctionMint(uint256 mintNum) 
+        external 
+        payable
+        nonReentrant
+        maxSupply(mintNum)
+        correctPayment(getAuctionPrice(), mintNum)
+    {
+        require(
+            auctionSaleStartTime != 0 && block.timestamp >= auctionSaleStartTime,
+            "sale has not started yet"
+        );
+
+        _safeMint(msg.sender, mintNum);
     }
 
     function preMint(uint256 mintNum, bytes32[] calldata merkleProof)
@@ -145,7 +179,7 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
     function devMint(uint256 mintNum) 
         external 
         onlyOwner 
-        maxSupply(mintNum) 
+        maxSupplyDev(mintNum)
     {
         require(
             mintNum % MAX_BATCH == 0,
@@ -160,23 +194,15 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
     function reserve(address[] calldata receivers, uint256 mintNum)
         external
         onlyOwner
-        maxSupply(mintNum*receivers.length)
+        maxSupplyDev(mintNum*receivers.length)
     {
         for (uint256 i = 0; i < receivers.length; i++) {
             _safeMint(receivers[i], mintNum);
         }
     }
 
-    /***
-     *     ██████╗ ██╗    ██╗███╗   ██╗███████╗██████╗
-     *    ██╔═══██╗██║    ██║████╗  ██║██╔════╝██╔══██╗
-     *    ██║   ██║██║ █╗ ██║██╔██╗ ██║█████╗  ██████╔╝
-     *    ██║   ██║██║███╗██║██║╚██╗██║██╔══╝  ██╔══██╗
-     *    ╚██████╔╝╚███╔███╔╝██║ ╚████║███████╗██║  ██║
-     *     ╚═════╝  ╚══╝╚══╝ ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
-     * This section will have all the internals set to onlyOwner
-     */
-
+    // ** OWNER ** //
+    // *************** //
     function withdrawFunds() external onlyOwner {
         (bool success, ) = payable(_creators).call{value: address(this).balance}("");
         require(success, "Failed to send payment");
@@ -186,16 +212,6 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         require(freezeURI == false, "Metadata is frozen");
         _metadataBaseURI = _URI;
     }
-
-    //   function setMAX_BATCH(uint256 maxBatch) external onlyOwner returns (uint256 ) {
-    //       MAX_BATCH = maxBatch;
-    //       return MAX_BATCH;
-    //   }
-
-    //   function setCreator(address to) external onlyOwner returns (address) {
-    //       _creators = to;
-    //       return _creators;
-    //   }
 
     function tglLive() external onlyOwner {
         saleLiveToggle = !saleLiveToggle;
@@ -218,13 +234,24 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         _unpause();
     }
 
+    function updateAuctionLength(uint256 _length) external onlyOwner {
+        AUCTION_PRICE_CURVE_LENGTH = _length;
+        AUCTION_DROP_PER_STEP = (AUCTION_START_PRICE - AUCTION_END_PRICE) / (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL);
+    }
+
     function updatePrice(uint256 _price, uint256 _list) external onlyOwner {
         if (_list == 0) {
             PRICE = _price ;
         } else if (_list == 1) {
             AUCTION_START_PRICE = _price ;
+            if(AUCTION_START_PRICE > AUCTION_END_PRICE) {
+                AUCTION_DROP_PER_STEP =(AUCTION_START_PRICE - AUCTION_END_PRICE) / (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL);
+            }
         } else if (_list == 2) {
             AUCTION_END_PRICE = _price ;
+            if(AUCTION_START_PRICE > AUCTION_END_PRICE) {
+                AUCTION_DROP_PER_STEP =(AUCTION_START_PRICE - AUCTION_END_PRICE) / (AUCTION_PRICE_CURVE_LENGTH / AUCTION_DROP_INTERVAL);
+            }
         } else {
             PRESALE_PRICE = _price ;
         }
@@ -234,49 +261,7 @@ contract MiniMich is ERC721A, Ownable, Pausable, ReentrancyGuard {
         wlisteRoot = _root;
     }
 
-    // function setOwnersExplicit(uint256 quantity)
-    //     external
-    //     onlyOwner
-    //    nonReentrant
-    // {
-    //     _setOwnersExplicit(quantity);
-    // }
-
-
-
-  function getAuctionPrice()
-    public
-    view
-    returns (uint256)
-  {
-    if (block.timestamp < auctionSaleStartTime) {
-      return AUCTION_START_PRICE;
+    function setAuctionSaleStartTime(uint256 timestamp) external onlyOwner {
+        auctionSaleStartTime = timestamp;
     }
-    if (block.timestamp - auctionSaleStartTime >= AUCTION_PRICE_CURVE_LENGTH) {
-      return AUCTION_END_PRICE;
-    } else {
-      uint256 steps = (block.timestamp - auctionSaleStartTime) /
-        AUCTION_DROP_INTERVAL;
-      return AUCTION_START_PRICE - (steps * AUCTION_DROP_PER_STEP);
-    }
-  }
-
-  function setAuctionSaleStartTime(uint256 timestamp) external onlyOwner {
-    auctionSaleStartTime = timestamp;
-  }
-
-  function auctionMint(uint256 mintNum) 
-    external 
-    payable
-    nonReentrant
-    maxSupply(mintNum)
-    correctPayment(getAuctionPrice(), mintNum)
-    {
-    require(
-      auctionSaleStartTime != 0 && block.timestamp >= auctionSaleStartTime,
-      "sale has not started yet"
-    );
-
-    _safeMint(msg.sender, mintNum);
-  }
 }
